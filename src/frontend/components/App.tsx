@@ -12,9 +12,11 @@ import { SignIn } from "@bentley/ui-components";
 import { SimpleViewerApp } from "../api/SimpleViewerApp";
 import PropertiesWidget from "./Properties";
 import GridWidget from "./Table";
+import Dropzone from "react-dropzone";
 import TreeWidget from "./Tree";
 import ViewportContentControl from "./Viewport";
 import "@bentley/icons-generic-webfont/dist/bentley-icons-generic-webfont.css";
+import * as parse from "csv-parse/lib/sync";
 import "./App.css";
 
 // tslint:disable: no-console
@@ -262,11 +264,54 @@ interface IModelComponentsProps {
   imodel: IModelConnection;
   viewDefinitionId: Id64String;
 }
+
+interface IModelComponentsState {
+  data?: [];
+}
+
 /** Renders a viewport, a tree, a property grid and a table */
-class IModelComponents extends React.PureComponent<IModelComponentsProps> {
+class IModelComponents extends React.PureComponent<IModelComponentsProps, IModelComponentsState> {
+
+  constructor(props?: any, context?: any) {
+    super(props, context);
+    this.state = {data : undefined};
+  }
+
+  // method to parse data when file is dropped on dropzone component.
+  private _onFileDrop = (acceptedFiles: any) => {
+    if (acceptedFiles[0]) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        // Do whatever you want with the file contents
+        const data = reader.result as string;
+        try {
+          const info = parse(data);
+          this.setState({data: info});
+        } catch (e) {
+          e;
+        }
+      };
+      acceptedFiles.forEach((file: any) => reader.readAsText(file));
+    }
+  }
+
   public render() {
     // ID of the presentation ruleset used by all of the controls; the ruleset
     // can be found at `assets/presentation_rules/Default.PresentationRuleSet.xml`
+
+    // if we have data, render the table, else render the dropzone component.
+    const bottomComponent = this.state.data ? (<GridWidget data={this.state.data} />)
+      : (<Dropzone onDrop={this._onFileDrop}>
+        {({getRootProps, getInputProps}) => (
+          <section>
+            <div {...getRootProps()}>
+              <input {...getInputProps()} />
+              <p>Drag 'n' drop some files here, or click to select files</p>
+            </div>
+          </section>
+        )}
+        </Dropzone>);
+
     const rulesetId = "Default";
     return (
       <div className="app-content">
@@ -282,7 +327,7 @@ class IModelComponents extends React.PureComponent<IModelComponentsProps> {
           </div>
         </div>
         <div className="bottom">
-          <GridWidget imodel={this.props.imodel} rulesetId={rulesetId} />
+        {bottomComponent}
         </div>
       </div>
     );
